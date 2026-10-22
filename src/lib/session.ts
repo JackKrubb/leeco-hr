@@ -40,7 +40,8 @@ export const getMe = cache(async (): Promise<Me | null> => {
 export async function requireMe(opts: { allowPinChange?: boolean } = {}) {
   const me = await getMe();
   if (!me) redirect("/login");
-  if (me.employee.must_change_pin && !opts.allowPinChange) redirect("/change-pin");
+  const pinFree = !me.settings.require_pin && me.employee.role === "employee";
+  if (me.employee.must_change_pin && !pinFree && !opts.allowPinChange) redirect("/change-pin");
   return me;
 }
 

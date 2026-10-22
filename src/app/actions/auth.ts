@@ -21,7 +21,7 @@ type LoginResult = {
 export async function loginAction(_prev: FormState, fd: FormData): Promise<FormState> {
   const code = String(fd.get("code") ?? "").trim();
   const pin = String(fd.get("pin") ?? "").trim();
-  if (!code || !pin) return { error: "กรอกรหัสพนักงานและ PIN" };
+  if (!code) return { error: "กรอกรหัสพนักงาน" };
 
   let res: LoginResult;
   try {

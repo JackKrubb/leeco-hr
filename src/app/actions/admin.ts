@@ -243,6 +243,7 @@ export async function saveSettingsAction(_prev: FormState, fd: FormData): Promis
         late_grace_minutes: s("late_grace_minutes"),
         work_days: workDays,
         require_location: fd.get("require_location") === "on",
+        require_pin: fd.get("require_pin") === "on",
         site_lat: s("site_lat"),
         site_lng: s("site_lng"),
         site_radius_m: s("site_radius_m"),

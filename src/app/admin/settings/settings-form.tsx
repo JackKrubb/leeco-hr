@@ -72,6 +72,17 @@ export function SettingsForm({ s }: { s: Settings }) {
         </label>
       </section>
 
+      <section className="card space-y-2 p-5">
+        <h2 className="text-sm font-semibold">การเข้าระบบ</h2>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" name="require_pin" defaultChecked={s.require_pin} className="mt-1" />
+          <span>
+            พนักงานต้องใช้ PIN ตอนเข้าระบบ
+            <span className="block text-xs text-muted">ปิดไว้ = โหมดทดสอบ: พนักงานเข้าด้วยรหัสพนักงานอย่างเดียว (ใครรู้รหัสก็ลงเวลาแทนได้) · ผู้ดูแลระบบต้องใช้ PIN เสมอ</span>
+          </span>
+        </label>
+      </section>
+
       {state?.error && <p className="rounded-lg bg-bad-soft px-3 py-2 text-sm text-bad">{state.error}</p>}
       {state?.message && <p className="rounded-lg bg-ok-soft px-3 py-2 text-sm text-ok">{state.message}</p>}
       <div className="flex justify-end"><SubmitButton>บันทึกการตั้งค่า</SubmitButton></div>
