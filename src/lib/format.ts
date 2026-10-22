@@ -14,7 +14,7 @@ export function fmtDateLong(iso: string) {
 
 /** "08:02" */
 export function fmtTime(iso: string | null | undefined) {
-  if (!iso) return "-";
+  if (!iso || Number.isNaN(new Date(iso).getTime())) return "-";
   return new Intl.DateTimeFormat("th-TH", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
 }
 

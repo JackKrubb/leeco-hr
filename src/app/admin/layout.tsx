@@ -15,8 +15,9 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           <p className="hidden text-xs text-muted lg:mt-1 lg:block">{fullName(me.employee, false)}</p>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-3 pb-3 lg:block lg:space-y-1 lg:overflow-visible">
-          <NavLink variant="side" href="/admin" exact>วันนี้</NavLink>
-          <NavLink variant="side" href="/admin/attendance">รายงานเวลา</NavLink>
+          <NavLink variant="side" href="/admin" exact>รายงานรายวัน</NavLink>
+          <NavLink variant="side" href="/admin/reports/monthly">รายงานรายเดือน</NavLink>
+          <NavLink variant="side" href="/admin/attendance">ช่วงวันที่ / แก้ไขเวลา</NavLink>
           <NavLink variant="side" href="/admin/employees">พนักงาน</NavLink>
           <NavLink variant="side" href="/admin/holidays">วันหยุด</NavLink>
           <NavLink variant="side" href="/admin/settings">ตั้งค่า</NavLink>

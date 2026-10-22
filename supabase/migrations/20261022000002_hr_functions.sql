@@ -85,6 +85,20 @@ language sql stable set search_path = '' as $$
    where s.id = 1
 $$;
 
+-- minutes left early for a check-out at p_out (0 on non-workdays or at/after work_end)
+create or replace function hr_private.calc_early(p_out timestamptz) returns int
+language sql stable set search_path = '' as $$
+  select case
+           when p_out is null then 0
+           when not hr_private.is_workday((p_out at time zone 'Asia/Bangkok')::date) then 0
+           when (p_out at time zone 'Asia/Bangkok')::time < s.work_end
+             then ceil(extract(epoch from (s.work_end - (p_out at time zone 'Asia/Bangkok')::time)) / 60)::int
+           else 0
+         end
+    from public.settings s
+   where s.id = 1
+$$;
+
 -- great-circle distance in metres
 create or replace function hr_private.distance_m(lat1 float8, lng1 float8, lat2 float8, lng2 float8)
 returns float8 language sql immutable set search_path = '' as $$
@@ -304,7 +318,8 @@ begin
 
   update public.attendance
      set check_out_at = now(), check_out_lat = p_lat, check_out_lng = p_lng,
-         check_out_accuracy_m = p_accuracy, check_out_distance_m = v_dist
+         check_out_accuracy_m = p_accuracy, check_out_distance_m = v_dist,
+         early_minutes = hr_private.calc_early(now())
    where id = a.id
   returning * into a;
   return to_jsonb(a);
@@ -685,6 +700,8 @@ begin
                    'late_days', coalesce(st.late_days, 0),
                    'late_minutes', coalesce(st.late_minutes, 0),
                    'missing_checkout', coalesce(st.missing_checkout, 0),
+                   'early_days', coalesce(st.early_days, 0),
+                   'early_minutes', coalesce(st.early_minutes, 0),
                    'absent', greatest(0, wd.n - coalesce(st.present_on_workdays, 0))) as x
             from public.employees e
             cross join lateral (
@@ -697,6 +714,8 @@ begin
                      count(*) filter (where a.check_in_at is not null and hr_private.is_workday(a.work_date))::int as present_on_workdays,
                      count(*) filter (where a.late_minutes > 0)::int as late_days,
                      sum(a.late_minutes)::int as late_minutes,
+                     count(*) filter (where a.early_minutes > 0)::int as early_days,
+                     sum(a.early_minutes)::int as early_minutes,
                      count(*) filter (where a.check_in_at is not null and a.check_out_at is null and a.work_date < v_today)::int as missing_checkout
                 from public.attendance a
                where a.employee_id = e.id and a.work_date between p_from and p_to) st on true
@@ -729,11 +748,14 @@ begin
     return jsonb_build_object('deleted', true);
   end if;
 
-  insert into public.attendance (employee_id, work_date, check_in_at, check_out_at, late_minutes, admin_note, edited_by)
-  values (p_employee_id, p_work_date, v_in, v_out, hr_private.calc_late(v_in), nullif(trim(p_note), ''), admin.id)
+  insert into public.attendance (employee_id, work_date, check_in_at, check_out_at, late_minutes, early_minutes,
+                                 admin_note, edited_by)
+  values (p_employee_id, p_work_date, v_in, v_out, hr_private.calc_late(v_in), hr_private.calc_early(v_out),
+          nullif(trim(p_note), ''), admin.id)
   on conflict (employee_id, work_date) do update
      set check_in_at = excluded.check_in_at, check_out_at = excluded.check_out_at,
-         late_minutes = excluded.late_minutes, admin_note = excluded.admin_note, edited_by = excluded.edited_by
+         late_minutes = excluded.late_minutes, early_minutes = excluded.early_minutes,
+         admin_note = excluded.admin_note, edited_by = excluded.edited_by
   returning * into a;
   return to_jsonb(a);
 end $$;

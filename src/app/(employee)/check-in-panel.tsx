@@ -33,12 +33,14 @@ export function CheckInPanel({
   serverTime,
   initial,
   workStart,
+  workEnd,
   requireLocation,
   tracked,
 }: {
   serverTime: string;
   initial: Attendance | null;
   workStart: string;
+  workEnd: string;
   requireLocation: boolean;
   tracked: boolean;
 }) {
@@ -87,7 +89,7 @@ export function CheckInPanel({
       <div className="px-5 pt-6 pb-5 text-center">
         <p className="eyebrow">เวลาขณะนี้</p>
         <p className="mt-1 font-mono text-5xl font-semibold tabular-nums tracking-tight" suppressHydrationWarning>{clock}</p>
-        <p className="mt-2 text-xs text-muted">เวลาเข้างาน {workStart} น.</p>
+        <p className="mt-2 text-xs text-muted">เวลาทำงาน {workStart}–{workEnd} น.</p>
       </div>
 
       <div className="grid grid-cols-2 border-t border-line text-center">
@@ -105,7 +107,12 @@ export function CheckInPanel({
         <div className="px-3 py-4">
           <p className="text-xs text-muted">ออกงาน</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums">{fmtTime(att?.check_out_at)}</p>
-          {checkedOut && <span className="badge mt-1 bg-paper text-muted">{fmtDuration(att!.check_in_at, att!.check_out_at)}</span>}
+          {checkedOut &&
+            (att!.early_minutes > 0 ? (
+              <span className="badge mt-1 bg-early-soft text-early">กลับก่อน {att!.early_minutes} นาที</span>
+            ) : (
+              <span className="badge mt-1 bg-paper text-muted">{fmtDuration(att!.check_in_at, att!.check_out_at)}</span>
+            ))}
         </div>
       </div>
 

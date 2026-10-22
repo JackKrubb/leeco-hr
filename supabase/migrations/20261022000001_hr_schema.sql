@@ -63,6 +63,7 @@ create table public.attendance (
   check_out_accuracy_m real,
   check_out_distance_m real,
   late_minutes         int not null default 0,
+  early_minutes        int not null default 0,   -- left before work_end on a workday
   admin_note           text,
   edited_by            uuid references public.employees (id) on delete set null,
   created_at           timestamptz not null default now(),
@@ -77,7 +78,7 @@ create table public.settings (
   company_name       text not null default 'LEECO',
   work_start         time not null default '08:00',
   work_end           time not null default '17:00',
-  late_grace_minutes int not null default 0,
+  late_grace_minutes int not null default 1,   -- late only when more than 1 minute after work_start
   work_days          int[] not null default '{1,2,3,4,5,6}',  -- ISO weekday: 1 = Mon … 7 = Sun
   require_location   boolean not null default false,
   site_lat           double precision,

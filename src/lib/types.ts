@@ -29,6 +29,7 @@ export type Attendance = {
   check_in_distance_m: number | null;
   check_out_distance_m: number | null;
   late_minutes: number;
+  early_minutes: number;
   admin_note: string | null;
   edited_by: string | null;
 };

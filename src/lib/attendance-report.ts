@@ -15,6 +15,8 @@ export type AttendanceReport = {
     late_days: number;
     late_minutes: number;
     missing_checkout: number;
+    early_days: number;
+    early_minutes: number;
     absent: number;
   }[];
 };

@@ -42,6 +42,7 @@ export default async function HomePage() {
         serverTime={me.server_time}
         initial={today.attendance}
         workStart={settings.work_start}
+        workEnd={settings.work_end}
         requireLocation={settings.require_location}
         tracked={e.track_attendance}
       />
@@ -79,7 +80,10 @@ export default async function HomePage() {
                   <td>{fmtDate(a.work_date, { weekday: "short", year: undefined })}</td>
                   <td className="tabular-nums">{fmtTime(a.check_in_at)}</td>
                   <td className="tabular-nums">{fmtTime(a.check_out_at)}</td>
-                  <td className="text-right">{a.late_minutes > 0 && <span className="badge bg-warn-soft text-warn">สาย {a.late_minutes} น.</span>}</td>
+                  <td className="space-x-1 text-right">
+                    {a.late_minutes > 0 && <span className="badge bg-warn-soft text-warn">สาย {a.late_minutes} น.</span>}
+                    {a.early_minutes > 0 && <span className="badge bg-early-soft text-early">กลับก่อน {a.early_minutes} น.</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
