@@ -9,7 +9,7 @@ import { fmtDateLong, fmtTime } from "@/lib/format";
 import { Brand } from "@/components/brand";
 import { StampSheet } from "@/components/kiosk/stamp-sheet";
 
-type Filter = "all" | "todo" | "in" | "out";
+type Filter = "all" | "todo" | "in" | "lunch" | "out";
 
 function useClock(serverTime: string | undefined) {
   const [now, setNow] = useState<Date | null>(null);
@@ -26,9 +26,11 @@ function useClock(serverTime: string | undefined) {
 
 function status(p: RosterPerson) {
   if (!p.check_in_at) return { key: "todo" as const, label: "ยังไม่เข้างาน", cls: "bg-paper text-muted" };
-  if (!p.check_out_at)
-    return { key: "in" as const, label: `เข้า ${fmtTime(p.check_in_at)}${p.late_minutes ? ` · สาย ${p.late_minutes}` : ""}`, cls: p.late_minutes ? "bg-warn-soft text-warn" : "bg-ok-soft text-ok" };
-  return { key: "out" as const, label: `ออก ${fmtTime(p.check_out_at)}`, cls: "bg-ink/5 text-ink" };
+  if (p.check_out_at) return { key: "out" as const, label: `ออก ${fmtTime(p.check_out_at)}`, cls: "bg-ink/5 text-ink" };
+  if (p.break_out_at && !p.break_in_at) return { key: "lunch" as const, label: `พักเที่ยง ${fmtTime(p.break_out_at)}`, cls: "bg-company-soft text-company" };
+  if (p.break_in_at)
+    return { key: "in" as const, label: `กลับจากพัก ${fmtTime(p.break_in_at)}${p.break_late_minutes ? ` · สาย ${p.break_late_minutes}` : ""}`, cls: p.break_late_minutes ? "bg-warn-soft text-warn" : "bg-ok-soft text-ok" };
+  return { key: "in" as const, label: `เข้า ${fmtTime(p.check_in_at)}${p.late_minutes ? ` · สาย ${p.late_minutes}` : ""}`, cls: p.late_minutes ? "bg-warn-soft text-warn" : "bg-ok-soft text-ok" };
 }
 
 export default function KioskPage() {
@@ -95,11 +97,12 @@ export default function KioskPage() {
 
   const counts = roster
     ? {
-        todo: roster.employees.filter((p) => !p.check_in_at).length,
-        in: roster.employees.filter((p) => p.check_in_at && !p.check_out_at).length,
-        out: roster.employees.filter((p) => p.check_out_at).length,
+        todo: roster.employees.filter((p) => status(p).key === "todo").length,
+        in: roster.employees.filter((p) => status(p).key === "in").length,
+        lunch: roster.employees.filter((p) => status(p).key === "lunch").length,
+        out: roster.employees.filter((p) => status(p).key === "out").length,
       }
-    : { todo: 0, in: 0, out: 0 };
+    : { todo: 0, in: 0, lunch: 0, out: 0 };
   const offHoliday = roster?.holidays.find((h) => h.company_off);
 
   return (
@@ -117,7 +120,11 @@ export default function KioskPage() {
           <p className="text-sm text-muted">{roster ? fmtDateLong(roster.today) : " "}</p>
           <p className="font-mono text-4xl font-semibold tabular-nums tracking-tight sm:text-5xl" suppressHydrationWarning>{clock}</p>
         </div>
-        {roster && <p className="text-xs text-muted">เวลาทำงาน {roster.settings.work_start}–{roster.settings.work_end} น.</p>}
+        {roster && (
+          <p className="text-xs text-muted">
+            เข้า {roster.settings.work_start} · พัก {roster.settings.break_start}–{roster.settings.break_end} · เลิก {roster.settings.work_end} น.
+          </p>
+        )}
       </section>
 
       {offHoliday && (
@@ -132,6 +139,7 @@ export default function KioskPage() {
             ["all", `ทั้งหมด ${roster?.employees.length ?? ""}`],
             ["todo", `ยังไม่เข้า ${counts.todo}`],
             ["in", `อยู่ในงาน ${counts.in}`],
+            ["lunch", `พักเที่ยง ${counts.lunch}`],
             ["out", `ออกแล้ว ${counts.out}`],
           ] as [Filter, string][]).map(([k, label]) => (
             <button key={k} onClick={() => setFilter(k)} className={`shrink-0 rounded-full px-3 py-1.5 ${filter === k ? "bg-ink text-white" : "border border-line bg-card text-muted"}`}>

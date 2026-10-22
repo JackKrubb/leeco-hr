@@ -26,6 +26,10 @@ export type Attendance = {
   work_date: string;
   check_in_at: string | null;
   check_out_at: string | null;
+  break_out_at: string | null;
+  break_in_at: string | null;
+  break_early_minutes: number;
+  break_late_minutes: number;
   check_in_distance_m: number | null;
   check_out_distance_m: number | null;
   late_minutes: number;
@@ -47,6 +51,8 @@ export type Settings = {
   company_name: string;
   work_start: string;
   work_end: string;
+  break_start: string;
+  break_end: string;
   late_grace_minutes: number;
   work_days: number[];
   require_location: boolean;

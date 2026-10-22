@@ -17,6 +17,11 @@ export type AttendanceReport = {
     missing_checkout: number;
     early_days: number;
     early_minutes: number;
+    break_late_days: number;
+    break_late_minutes: number;
+    break_early_days: number;
+    break_early_minutes: number;
+    missing_break: number;
     absent: number;
   }[];
 };

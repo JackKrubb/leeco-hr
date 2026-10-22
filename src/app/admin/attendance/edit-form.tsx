@@ -10,9 +10,9 @@ export function EditAttendanceForm({ employees, defaultDate }: { employees: { id
     <form action={action} className="card space-y-3 p-4">
       <div>
         <h2 className="text-sm font-semibold">แก้ไข / เพิ่มเวลาให้พนักงาน</h2>
-        <p className="text-xs text-muted">ใช้กรณีลืมลงเวลา โทรศัพท์เสีย ฯลฯ — เว้นว่างทั้งเข้าและออก = ลบรายการของวันนั้น</p>
+        <p className="text-xs text-muted">ใช้กรณีลืมลงเวลา โทรศัพท์เสีย ฯลฯ — ใส่ทุกช่องที่ควรมี (ช่องที่เว้นว่าง = ไม่มีเวลานั้น) · เว้นว่างทั้งหมด = ลบรายการของวันนั้น</p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-[1fr_150px_110px_110px]">
+      <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
         <div>
           <label className="label">พนักงาน</label>
           <select name="employee_id" className="input" required defaultValue="">
@@ -21,8 +21,12 @@ export function EditAttendanceForm({ employees, defaultDate }: { employees: { id
           </select>
         </div>
         <div><label className="label">วันที่</label><input type="date" name="work_date" className="input" defaultValue={defaultDate} required /></div>
-        <div><label className="label">เข้า</label><input type="time" name="check_in" className="input" /></div>
-        <div><label className="label">ออก</label><input type="time" name="check_out" className="input" /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div><label className="label">เข้างาน</label><input type="time" name="check_in" className="input" /></div>
+        <div><label className="label">พักเที่ยง</label><input type="time" name="break_out" className="input" /></div>
+        <div><label className="label">กลับจากพัก</label><input type="time" name="break_in" className="input" /></div>
+        <div><label className="label">ออกงาน</label><input type="time" name="check_out" className="input" /></div>
       </div>
       <div><label className="label">เหตุผล (บันทึกไว้ในรายงาน)</label><input name="note" className="input" placeholder="เช่น ลืมลงเวลา หัวหน้าแผนกยืนยัน" required /></div>
       {state?.error && <p className="text-sm text-bad">{state.error}</p>}

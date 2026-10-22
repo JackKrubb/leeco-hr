@@ -164,10 +164,12 @@ export const deleteHoliday = (id: string) =>
 export async function editAttendanceAction(_prev: FormState, fd: FormData): Promise<FormState> {
   if (!s(fd, "employee_id") || !s(fd, "work_date")) return { error: "เลือกพนักงานและวันที่" };
   try {
-    await authed("hr_admin_edit_attendance", {
+    await authed("hr_admin_edit_attendance_v2", {
       p_employee_id: s(fd, "employee_id"),
       p_work_date: s(fd, "work_date"),
       p_check_in: s(fd, "check_in") || null,
+      p_break_out: s(fd, "break_out") || null,
+      p_break_in: s(fd, "break_in") || null,
       p_check_out: s(fd, "check_out") || null,
       p_note: s(fd, "note") || null,
     });
@@ -195,6 +197,8 @@ export async function saveSettingsAction(_prev: FormState, fd: FormData): Promis
         company_name: s(fd, "company_name"),
         work_start: s(fd, "work_start"),
         work_end: s(fd, "work_end"),
+        break_start: s(fd, "break_start"),
+        break_end: s(fd, "break_end"),
         late_grace_minutes: s(fd, "late_grace_minutes"),
         work_days: workDays,
         require_location: fd.get("require_location") === "on",

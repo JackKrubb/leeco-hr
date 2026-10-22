@@ -39,8 +39,12 @@ export type RosterPerson = {
   position: string | null;
   check_in_at: string | null;
   check_out_at: string | null;
+  break_out_at: string | null;
+  break_in_at: string | null;
   late_minutes: number;
   early_minutes: number;
+  break_early_minutes: number;
+  break_late_minutes: number;
 };
 
 export type Roster = {

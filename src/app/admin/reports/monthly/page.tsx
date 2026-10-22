@@ -81,14 +81,19 @@ function MonthlyReport() {
   for (const r of report.rows) att.set(`${r.attendance.employee_id}|${r.attendance.work_date}`, r.attendance);
 
   const summary = [...report.summary].sort((a, b) =>
-    sort === "late" ? b.late_minutes - a.late_minutes || b.late_days - a.late_days
+    sort === "late" ? b.late_minutes + b.break_late_minutes - (a.late_minutes + a.break_late_minutes) || b.late_days - a.late_days
     : sort === "early" ? b.early_minutes - a.early_minutes || b.early_days - a.early_days
     : sort === "absent" ? b.absent - a.absent
     : 0,
   );
   const tot = summary.reduce(
-    (t, s) => ({ late: t.late + s.late_days, lateMin: t.lateMin + s.late_minutes, early: t.early + s.early_days, earlyMin: t.earlyMin + s.early_minutes, absent: t.absent + s.absent, miss: t.miss + s.missing_checkout }),
-    { late: 0, lateMin: 0, early: 0, earlyMin: 0, absent: 0, miss: 0 },
+    (t, s) => ({
+      late: t.late + s.late_days, lateMin: t.lateMin + s.late_minutes,
+      bLate: t.bLate + s.break_late_days, bLateMin: t.bLateMin + s.break_late_minutes,
+      early: t.early + s.early_days, earlyMin: t.earlyMin + s.early_minutes,
+      absent: t.absent + s.absent, miss: t.miss + s.missing_checkout, noBreak: t.noBreak + s.missing_break,
+    }),
+    { late: 0, lateMin: 0, bLate: 0, bLateMin: 0, early: 0, earlyMin: 0, absent: 0, miss: 0, noBreak: 0 },
   );
   const link = (p: Record<string, string>) => `/admin/reports/monthly/?${new URLSearchParams({ m: key, ...(sort !== "order" ? { sort } : {}), ...p })}`;
 
@@ -114,12 +119,13 @@ function MonthlyReport() {
 
       <ReviewPanel monthKey={key} status={status} />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {[
-          ["มาสาย", `${tot.late} ครั้ง`, `${tot.lateMin} นาที`, "text-warn"],
+          ["มาสาย (เช้า)", `${tot.late} ครั้ง`, `${tot.lateMin} นาที`, "text-warn"],
+          ["กลับจากพักสาย", `${tot.bLate} ครั้ง`, `${tot.bLateMin} นาที`, "text-warn"],
           ["กลับก่อนเวลา", `${tot.early} ครั้ง`, `${tot.earlyMin} นาที`, "text-early"],
           ["ขาด / ไม่ลงเวลา", `${tot.absent} วัน-คน`, "ยังไม่หักวันลา", "text-bad"],
-          ["ไม่ลงเวลาออก", `${tot.miss} ครั้ง`, "", ""],
+          ["ไม่ตอกพัก / ไม่ลงเวลาออก", `${tot.noBreak} / ${tot.miss} ครั้ง`, "", ""],
           ["พนักงาน", `${summary.length} คน`, "", ""],
         ].map(([label, v, sub, tone]) => (
           <div key={label} className="card px-4 py-3">
@@ -145,7 +151,10 @@ function MonthlyReport() {
               <th>รหัส</th><th>ชื่อ</th><th>ฝ่าย</th>
               <th className="text-right">วันทำงาน</th><th className="text-right">มา</th><th className="text-right">ขาด</th>
               <th className="text-right">สาย (ครั้ง)</th><th className="text-right">สาย (นาที)</th>
+              <th className="text-right">กลับพักสาย (ครั้ง)</th><th className="text-right">กลับพักสาย (นาที)</th>
+              <th className="text-right">ออกพักก่อน (ครั้ง)</th>
               <th className="text-right">กลับก่อน (ครั้ง)</th><th className="text-right">กลับก่อน (นาที)</th>
+              <th className="text-right">ไม่ตอกพัก</th>
               <th className="text-right">ไม่ลงเวลาออก</th>
             </tr>
           </thead>
@@ -160,8 +169,12 @@ function MonthlyReport() {
                 <td className={`text-right tabular-nums ${s.absent ? "font-medium text-bad" : "text-muted"}`}>{s.absent}</td>
                 <td className={`text-right tabular-nums ${s.late_days ? "font-medium text-warn" : "text-muted"}`}>{s.late_days}</td>
                 <td className={`text-right tabular-nums ${s.late_minutes ? "text-warn" : "text-muted"}`}>{s.late_minutes}</td>
+                <td className={`text-right tabular-nums ${s.break_late_days ? "font-medium text-warn" : "text-muted"}`}>{s.break_late_days}</td>
+                <td className={`text-right tabular-nums ${s.break_late_minutes ? "text-warn" : "text-muted"}`}>{s.break_late_minutes}</td>
+                <td className={`text-right tabular-nums ${s.break_early_days ? "text-early" : "text-muted"}`}>{s.break_early_days}</td>
                 <td className={`text-right tabular-nums ${s.early_days ? "font-medium text-early" : "text-muted"}`}>{s.early_days}</td>
                 <td className={`text-right tabular-nums ${s.early_minutes ? "text-early" : "text-muted"}`}>{s.early_minutes}</td>
+                <td className={`text-right tabular-nums ${s.missing_break ? "" : "text-muted"}`}>{s.missing_break}</td>
                 <td className={`text-right tabular-nums ${s.missing_checkout ? "" : "text-muted"}`}>{s.missing_checkout}</td>
               </tr>
             ))}
@@ -215,16 +228,18 @@ function MonthlyReport() {
                       let content: React.ReactNode = null;
                       let title = "";
                       if (a?.check_in_at) {
-                        title = `เข้า ${fmtTime(a.check_in_at)} · ออก ${fmtTime(a.check_out_at)}${a.admin_note ? ` · HR: ${a.admin_note}` : ""}`;
-                        if (a.late_minutes > 0 && a.early_minutes > 0) {
+                        title = `เข้า ${fmtTime(a.check_in_at)} · พัก ${fmtTime(a.break_out_at)}–${fmtTime(a.break_in_at)} · ออก ${fmtTime(a.check_out_at)}${a.admin_note ? ` · HR: ${a.admin_note}` : ""}`;
+                        const lateM = a.late_minutes + a.break_late_minutes;
+                        const earlyM = a.early_minutes + a.break_early_minutes;
+                        if (lateM > 0 && earlyM > 0) {
                           cls = "bg-warn-soft";
-                          content = <><span className="block leading-none text-warn">{a.late_minutes}</span><span className="block leading-none text-early">{a.early_minutes}</span></>;
-                        } else if (a.late_minutes > 0) {
+                          content = <><span className="block leading-none text-warn">{lateM}</span><span className="block leading-none text-early">{earlyM}</span></>;
+                        } else if (lateM > 0) {
                           cls = "bg-warn-soft text-warn font-medium";
-                          content = a.late_minutes;
-                        } else if (a.early_minutes > 0) {
+                          content = lateM;
+                        } else if (earlyM > 0) {
                           cls = "bg-early-soft text-early font-medium";
-                          content = a.early_minutes;
+                          content = earlyM;
                         } else {
                           cls = work ? "bg-ok-soft text-ok" : "bg-ok-soft/60 text-ok";
                           content = a.check_out_at || d === today ? "✓" : "?";
@@ -249,7 +264,7 @@ function MonthlyReport() {
             </tbody>
           </table>
         </div>
-        <p className="px-4 py-2 text-xs text-muted">ตัวเลข = จำนวนนาทีที่สาย/กลับก่อน · ช่องที่มีสองตัวเลข = ทั้งสาย (บน) และกลับก่อน (ล่าง) · “?” = ไม่ลงเวลาออก · ชี้ที่ช่องเพื่อดูเวลาเข้า-ออก · คลิกวันที่เพื่อดูรายงานรายวัน</p>
+        <p className="px-4 py-2 text-xs text-muted">ตัวเลข = นาทีที่สาย (เช้า + กลับจากพัก) / ออกก่อน (ออกพักก่อน + กลับบ้านก่อน) · ช่องที่มีสองตัวเลข = ทั้งสาย (บน) และกลับก่อน (ล่าง) · “?” = ไม่ลงเวลาออก · ชี้ที่ช่องเพื่อดูเวลาเข้า-ออก · คลิกวันที่เพื่อดูรายงานรายวัน</p>
       </section>
     </div>
   );

@@ -12,6 +12,7 @@ import { StatusBadges } from "@/components/status-badges";
 import { PhotoThumb } from "@/components/photo-thumb";
 import { PhotoStatusBanner } from "@/components/photo-status-banner";
 import { Loading } from "@/components/session";
+import { STAMPS, type StampKind } from "@/lib/stamps";
 
 type Dashboard = {
   date: string;
@@ -21,11 +22,12 @@ type Dashboard = {
   holidays: Holiday[];
   rows: { employee: Employee; attendance: Attendance | null }[];
 };
-type Photo = { employee_id: string; kind: "in" | "out"; image: string; taken_at: string };
+type Photo = { employee_id: string; kind: StampKind; image: string; taken_at: string };
 
 const FILTERS = [
   ["all", "ทั้งหมด"],
   ["late", "มาสาย"],
+  ["break_late", "กลับจากพักสาย"],
   ["early", "กลับก่อน"],
   ["missing", "ยังไม่/ไม่ได้ลงเวลา"],
 ] as const;
@@ -47,8 +49,10 @@ function Daily() {
   const present = data.rows.filter((r) => r.attendance?.check_in_at);
   const late = present.filter((r) => (r.attendance?.late_minutes ?? 0) > 0);
   const early = present.filter((r) => (r.attendance?.early_minutes ?? 0) > 0);
+  const breakLate = present.filter((r) => (r.attendance?.break_late_minutes ?? 0) > 0);
   const missing = data.rows.filter((r) => !r.attendance?.check_in_at);
-  const shown = filter === "late" ? late : filter === "early" ? early : filter === "missing" ? missing : data.rows;
+  const shown =
+    filter === "late" ? late : filter === "early" ? early : filter === "break_late" ? breakLate : filter === "missing" ? missing : data.rows;
 
   const groups = new Map<string, typeof shown>();
   for (const r of shown) {
@@ -72,7 +76,7 @@ function Daily() {
           <p className="eyebrow">รายงานรายวัน</p>
           <h1 className="h1">{fmtDateLong(data.date)}</h1>
           <p className="text-xs text-muted">
-            เวลาทำงาน {data.settings.work_start}–{data.settings.work_end} น. · สายเมื่อเข้าหลัง {data.settings.work_start} เกิน {data.settings.late_grace_minutes} นาที · ออกก่อน {data.settings.work_end} = กลับก่อน
+            เข้า {data.settings.work_start} · พัก {data.settings.break_start}–{data.settings.break_end} · เลิก {data.settings.work_end} น. · สายเมื่อเกินเวลา {data.settings.late_grace_minutes} นาที · ออกก่อนเวลา = กลับก่อน
           </p>
         </div>
         <div className="no-print flex flex-wrap items-end gap-2">
@@ -98,13 +102,14 @@ function Daily() {
       )}
       {!data.is_workday && <p className="text-sm text-muted">วันนี้ไม่ใช่วันทำงาน — คนที่ลงเวลาถือเป็นการมาทำงานนอกเวลา ไม่นับสาย/กลับก่อน</p>}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
         {stat("พนักงานทั้งหมด", data.rows.length, "", "all")}
         <div className="card px-4 py-3">
           <p className="text-xs text-muted">มาทำงาน</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums text-ok">{present.length}</p>
         </div>
         {stat("มาสาย", late.length, "text-warn", "late")}
+        {stat("กลับจากพักสาย", breakLate.length, "text-warn", "break_late")}
         {stat("กลับก่อนเวลา", early.length, "text-early", "early")}
         {stat(isPast ? "ขาด / ไม่ลงเวลา" : "ยังไม่ลงเวลา", data.is_workday ? missing.length : 0, "text-bad", "missing")}
       </div>
@@ -126,22 +131,38 @@ function Daily() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th>รหัส</th><th>ชื่อ</th><th>ตำแหน่ง</th><th>รูปเข้า</th><th>เข้า</th><th>รูปออก</th><th>ออก</th>
-                    <th className="text-right">สาย (นาที)</th><th className="text-right">กลับก่อน (นาที)</th><th>สถานะ</th>
+                    <th>รหัส</th><th>ชื่อ</th>
+                    {STAMPS.map((st) => <th key={st.kind}>{st.label}</th>)}
+                    <th>สถานะ</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map(({ employee: e, attendance: a }) => (
                     <tr key={e.id}>
                       <td className="text-muted tabular-nums">{e.emp_code}</td>
-                      <td className="whitespace-nowrap">{fullName(e)}</td>
-                      <td className="text-muted">{e.position ?? "-"}</td>
-                      <td>{a?.check_in_at && <PhotoThumb src={photoMap.get(`${e.id}|in`)} label={`${fullName(e, false)} · เข้า ${fmtTime(a.check_in_at)}`} />}</td>
-                      <td className={`tabular-nums ${a && a.late_minutes > 0 ? "font-medium text-warn" : ""}`}>{fmtTime(a?.check_in_at)}</td>
-                      <td>{a?.check_out_at && <PhotoThumb src={photoMap.get(`${e.id}|out`)} label={`${fullName(e, false)} · ออก ${fmtTime(a.check_out_at)}`} />}</td>
-                      <td className={`tabular-nums ${a && a.early_minutes > 0 ? "font-medium text-early" : ""}`}>{fmtTime(a?.check_out_at)}</td>
-                      <td className="text-right tabular-nums">{a?.late_minutes || ""}</td>
-                      <td className="text-right tabular-nums">{a?.early_minutes || ""}</td>
+                      <td className="whitespace-nowrap">{fullName(e)}<span className="block text-xs text-muted">{e.position ?? ""}</span></td>
+                      {STAMPS.map((st) => {
+                        const at = a?.[st.field] ?? null;
+                        const flagged =
+                          !!a &&
+                          ((st.kind === "in" && a.late_minutes > 0) ||
+                            (st.kind === "break_out" && a.break_early_minutes > 0) ||
+                            (st.kind === "break_in" && a.break_late_minutes > 0) ||
+                            (st.kind === "out" && a.early_minutes > 0));
+                        const tone = st.kind === "in" || st.kind === "break_in" ? "text-warn" : "text-early";
+                        return (
+                          <td key={st.kind} className="whitespace-nowrap">
+                            {at ? (
+                              <span className="inline-flex items-center gap-2">
+                                <PhotoThumb src={photoMap.get(`${e.id}|${st.kind}`)} label={`${fullName(e, false)} · ${st.label} ${fmtTime(at)}`} />
+                                <span className={`tabular-nums ${flagged ? `font-medium ${tone}` : ""}`}>{fmtTime(at)}</span>
+                              </span>
+                            ) : (
+                              <span className="text-muted">-</span>
+                            )}
+                          </td>
+                        );
+                      })}
                       <td><StatusBadges a={a} isWorkday={data.is_workday} isPast={isPast} isToday={isToday} /></td>
                     </tr>
                   ))}

@@ -45,7 +45,7 @@ function AttendanceRange() {
         </div>
         <table className="table">
           <thead>
-            <tr><th>รหัส</th><th>ชื่อ</th><th>ฝ่าย</th><th className="text-right">วันทำงาน</th><th className="text-right">มา</th><th className="text-right">ขาด/ไม่ลงเวลา</th><th className="text-right">สาย (วัน)</th><th className="text-right">สายรวม (นาที)</th><th className="text-right">กลับก่อน (วัน)</th><th className="text-right">กลับก่อนรวม (นาที)</th><th className="text-right">ไม่ลงเวลาออก</th></tr>
+            <tr><th>รหัส</th><th>ชื่อ</th><th>ฝ่าย</th><th className="text-right">วันทำงาน</th><th className="text-right">มา</th><th className="text-right">ขาด/ไม่ลงเวลา</th><th className="text-right">สาย (วัน)</th><th className="text-right">สายรวม (นาที)</th><th className="text-right">กลับพักสาย (วัน)</th><th className="text-right">ไม่ตอกพัก</th><th className="text-right">กลับก่อน (วัน)</th><th className="text-right">กลับก่อนรวม (นาที)</th><th className="text-right">ไม่ลงเวลาออก</th></tr>
           </thead>
           <tbody>
             {report.summary.map((s) => (
@@ -58,6 +58,8 @@ function AttendanceRange() {
                 <td className={`text-right tabular-nums ${s.absent ? "font-medium text-bad" : ""}`}>{s.absent}</td>
                 <td className={`text-right tabular-nums ${s.late_days ? "text-warn" : ""}`}>{s.late_days}</td>
                 <td className="text-right tabular-nums">{s.late_minutes}</td>
+                <td className={`text-right tabular-nums ${s.break_late_days ? "text-warn" : ""}`}>{s.break_late_days}</td>
+                <td className="text-right tabular-nums">{s.missing_break}</td>
                 <td className={`text-right tabular-nums ${s.early_days ? "text-early" : ""}`}>{s.early_days}</td>
                 <td className="text-right tabular-nums">{s.early_minutes}</td>
                 <td className={`text-right tabular-nums ${s.missing_checkout ? "text-warn" : ""}`}>{s.missing_checkout}</td>
@@ -78,7 +80,7 @@ function AttendanceRange() {
         <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">รายการลงเวลาทั้งหมด ({report.rows.length})</summary>
         <div className="overflow-x-auto">
           <table className="table">
-            <thead><tr><th>วันที่</th><th>รหัส</th><th>ชื่อ</th><th>เข้า</th><th>ออก</th><th>สาย</th><th>กลับก่อน</th><th>ระยะจากบริษัท</th><th>หมายเหตุ HR</th></tr></thead>
+            <thead><tr><th>วันที่</th><th>รหัส</th><th>ชื่อ</th><th>เข้า</th><th>พัก</th><th>กลับ</th><th>ออก</th><th>สาย</th><th>กลับพักสาย</th><th>กลับก่อน</th><th>ระยะจากบริษัท</th><th>หมายเหตุ HR</th></tr></thead>
             <tbody>
               {report.rows.map(({ employee: e, attendance: a }) => (
                 <tr key={a.id}>
@@ -86,8 +88,11 @@ function AttendanceRange() {
                   <td className="text-muted tabular-nums">{e.emp_code}</td>
                   <td className="whitespace-nowrap">{fullName(e)}</td>
                   <td className="tabular-nums">{fmtTime(a.check_in_at)}</td>
+                  <td className="tabular-nums">{fmtTime(a.break_out_at)}</td>
+                  <td className="tabular-nums">{fmtTime(a.break_in_at)}</td>
                   <td className="tabular-nums">{fmtTime(a.check_out_at)}</td>
                   <td className="tabular-nums text-warn">{a.late_minutes ? `${a.late_minutes} น.` : ""}</td>
+                  <td className="tabular-nums text-warn">{a.break_late_minutes ? `${a.break_late_minutes} น.` : ""}</td>
                   <td className="tabular-nums text-early">{a.early_minutes ? `${a.early_minutes} น.` : ""}</td>
                   <td className="tabular-nums text-muted">{a.check_in_distance_m != null ? `${Math.round(a.check_in_distance_m)} ม.` : "-"}</td>
                   <td className="text-xs text-muted">{a.admin_note}</td>

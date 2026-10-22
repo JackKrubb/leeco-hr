@@ -33,6 +33,8 @@ export function SettingsForm({ s }: { s: Settings }) {
           <div className="sm:col-span-1"><label className="label">ชื่อบริษัท</label><input name="company_name" className="input" defaultValue={s.company_name} /></div>
           <div><label className="label">เวลาเข้างาน</label><input type="time" name="work_start" className="input" defaultValue={s.work_start} required /></div>
           <div><label className="label">เวลาเลิกงาน</label><input type="time" name="work_end" className="input" defaultValue={s.work_end} required /></div>
+          <div><label className="label">พักเที่ยง เริ่ม</label><input type="time" name="break_start" className="input" defaultValue={s.break_start} required /></div>
+          <div><label className="label">พักเที่ยง สิ้นสุด</label><input type="time" name="break_end" className="input" defaultValue={s.break_end} required /></div>
           <div><label className="label">ผ่อนผันมาสาย (นาที)</label><input type="number" min={0} max={120} name="late_grace_minutes" className="input" defaultValue={s.late_grace_minutes} /></div>
         </div>
         <div>
@@ -46,7 +48,7 @@ export function SettingsForm({ s }: { s: Settings }) {
             ))}
           </div>
         </div>
-        <p className="text-xs text-muted">มาสาย = ลงเวลาเข้าหลัง (เวลาเข้างาน + ผ่อนผัน) ในวันทำงาน นับนาทีสายจากเวลาเข้างาน</p>
+        <p className="text-xs text-muted">มาสาย = เข้างานหลัง (เวลาเข้างาน + ผ่อนผัน) · กลับจากพักสาย = ตอกกลับหลัง (พักสิ้นสุด + ผ่อนผัน) · ออกพักก่อน = ตอกพักก่อนเวลาพักเริ่ม · กลับก่อน = ออกงานก่อนเวลาเลิกงาน — นับเฉพาะวันทำงาน</p>
       </section>
 
       <section className="card space-y-4 p-5">
