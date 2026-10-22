@@ -1,10 +1,17 @@
+"use client";
+
 import Link from "next/link";
-import { requireAdmin } from "@/lib/session";
-import { rpc } from "@/lib/db";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { useAuthed } from "@/lib/use-authed";
 import { addDays, fmtDateLong, fmtTime, fullName } from "@/lib/format";
+import { dailyLines, downloadCsv } from "@/lib/export";
 import type { Attendance, Employee, Holiday, Settings } from "@/lib/types";
 import { HolidayBadge } from "@/components/holiday-badge";
 import { StatusBadges } from "@/components/status-badges";
+import { PhotoThumb } from "@/components/photo-thumb";
+import { PhotoStatusBanner } from "@/components/photo-status-banner";
+import { Loading } from "@/components/session";
 
 type Dashboard = {
   date: string;
@@ -14,6 +21,7 @@ type Dashboard = {
   holidays: Holiday[];
   rows: { employee: Employee; attendance: Attendance | null }[];
 };
+type Photo = { employee_id: string; kind: "in" | "out"; image: string; taken_at: string };
 
 const FILTERS = [
   ["all", "ทั้งหมด"],
@@ -22,12 +30,17 @@ const FILTERS = [
   ["missing", "ยังไม่/ไม่ได้ลงเวลา"],
 ] as const;
 
-export default async function AdminDaily({ searchParams }: PageProps<"/admin">) {
-  const { token } = await requireAdmin();
-  const sp = await searchParams;
-  const d = typeof sp.d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.d) ? sp.d : null;
-  const filter = FILTERS.some(([k]) => k === sp.f) ? (sp.f as string) : "all";
-  const data = await rpc<Dashboard>("hr_admin_dashboard", { p_token: token, p_date: d });
+function Daily() {
+  const sp = useSearchParams();
+  const d = sp.get("d") && /^\d{4}-\d{2}-\d{2}$/.test(sp.get("d")!) ? sp.get("d") : null;
+  const filter = FILTERS.some(([k]) => k === sp.get("f")) ? sp.get("f")! : "all";
+  const dash = useAuthed<Dashboard>("hr_admin_dashboard", { p_date: d });
+  const date = dash.data?.date;
+  const photos = useAuthed<Photo[]>("hr_admin_photos", { p_date: date ?? "" }, !!date);
+
+  if (!dash.data) return <Loading error={dash.error} />;
+  const data = dash.data;
+  const photoMap = new Map((photos.data ?? []).map((p) => [`${p.employee_id}|${p.kind}`, p.image]));
 
   const isToday = data.date === data.today;
   const isPast = data.date < data.today;
@@ -35,15 +48,14 @@ export default async function AdminDaily({ searchParams }: PageProps<"/admin">) 
   const late = present.filter((r) => (r.attendance?.late_minutes ?? 0) > 0);
   const early = present.filter((r) => (r.attendance?.early_minutes ?? 0) > 0);
   const missing = data.rows.filter((r) => !r.attendance?.check_in_at);
-  const shown =
-    filter === "late" ? late : filter === "early" ? early : filter === "missing" ? missing : data.rows;
+  const shown = filter === "late" ? late : filter === "early" ? early : filter === "missing" ? missing : data.rows;
 
   const groups = new Map<string, typeof shown>();
   for (const r of shown) {
     const g = r.employee.work_group || "ไม่ระบุฝ่าย";
     groups.set(g, [...(groups.get(g) ?? []), r]);
   }
-  const q = (f: string) => `/admin?${new URLSearchParams({ ...(d ? { d } : {}), ...(f !== "all" ? { f } : {}) })}`;
+  const q = (f: string) => `/admin/?${new URLSearchParams({ ...(d ? { d } : {}), ...(f !== "all" ? { f } : {}) })}`;
 
   const stat = (label: string, value: number, tone: string, f: string) => (
     <Link href={q(f)} className={`card block px-4 py-3 transition hover:border-ink/40 ${filter === f ? "ring-2 ring-ink" : ""}`}>
@@ -54,6 +66,7 @@ export default async function AdminDaily({ searchParams }: PageProps<"/admin">) 
 
   return (
     <div className="space-y-5">
+      <PhotoStatusBanner />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="eyebrow">รายงานรายวัน</p>
@@ -63,14 +76,16 @@ export default async function AdminDaily({ searchParams }: PageProps<"/admin">) 
           </p>
         </div>
         <div className="no-print flex flex-wrap items-end gap-2">
-          <Link className="btn btn-sm" href={`/admin?d=${addDays(data.date, -1)}`}>← วันก่อน</Link>
-          <form className="flex gap-2">
+          <Link className="btn btn-sm" href={`/admin/?d=${addDays(data.date, -1)}`}>← วันก่อน</Link>
+          <form className="flex gap-2" action="">
             <input type="date" name="d" defaultValue={data.date} max={data.today} className="input py-1 text-sm" />
             <button className="btn btn-sm">ดู</button>
           </form>
-          {!isToday && <Link className="btn btn-sm" href={`/admin?d=${addDays(data.date, 1)}`}>วันถัดไป →</Link>}
-          {!isToday && <Link className="btn btn-sm" href="/admin">วันนี้</Link>}
-          <a className="btn btn-sm" href={`/admin/reports/export?type=daily&date=${data.date}`}>ดาวน์โหลด Excel</a>
+          {!isToday && <Link className="btn btn-sm" href={`/admin/?d=${addDays(data.date, 1)}`}>วันถัดไป →</Link>}
+          {!isToday && <Link className="btn btn-sm" href="/admin/">วันนี้</Link>}
+          <button className="btn btn-sm" onClick={() => downloadCsv(`daily-${data.date}`, dailyLines(data.date, data.today, data.is_workday, data.rows))}>
+            ดาวน์โหลด Excel
+          </button>
         </div>
       </div>
 
@@ -96,7 +111,7 @@ export default async function AdminDaily({ searchParams }: PageProps<"/admin">) 
 
       {data.rows.length === 0 ? (
         <div className="card p-6 text-sm">
-          ยังไม่มีพนักงานในระบบ — <Link className="text-accent underline" href="/admin/employees">นำเข้ารายชื่อจาก Excel</Link>
+          ยังไม่มีพนักงานในระบบ — <Link className="text-accent underline" href="/admin/employees/">นำเข้ารายชื่อจาก Excel</Link>
         </div>
       ) : shown.length === 0 ? (
         <div className="card p-6 text-sm text-muted">ไม่มีรายการในตัวกรองนี้</div>
@@ -111,7 +126,7 @@ export default async function AdminDaily({ searchParams }: PageProps<"/admin">) 
               <table className="table">
                 <thead>
                   <tr>
-                    <th>รหัส</th><th>ชื่อ</th><th>ตำแหน่ง</th><th>เข้า</th><th>ออก</th>
+                    <th>รหัส</th><th>ชื่อ</th><th>ตำแหน่ง</th><th>รูปเข้า</th><th>เข้า</th><th>รูปออก</th><th>ออก</th>
                     <th className="text-right">สาย (นาที)</th><th className="text-right">กลับก่อน (นาที)</th><th>สถานะ</th>
                   </tr>
                 </thead>
@@ -121,7 +136,9 @@ export default async function AdminDaily({ searchParams }: PageProps<"/admin">) 
                       <td className="text-muted tabular-nums">{e.emp_code}</td>
                       <td className="whitespace-nowrap">{fullName(e)}</td>
                       <td className="text-muted">{e.position ?? "-"}</td>
+                      <td>{a?.check_in_at && <PhotoThumb src={photoMap.get(`${e.id}|in`)} label={`${fullName(e, false)} · เข้า ${fmtTime(a.check_in_at)}`} />}</td>
                       <td className={`tabular-nums ${a && a.late_minutes > 0 ? "font-medium text-warn" : ""}`}>{fmtTime(a?.check_in_at)}</td>
+                      <td>{a?.check_out_at && <PhotoThumb src={photoMap.get(`${e.id}|out`)} label={`${fullName(e, false)} · ออก ${fmtTime(a.check_out_at)}`} />}</td>
                       <td className={`tabular-nums ${a && a.early_minutes > 0 ? "font-medium text-early" : ""}`}>{fmtTime(a?.check_out_at)}</td>
                       <td className="text-right tabular-nums">{a?.late_minutes || ""}</td>
                       <td className="text-right tabular-nums">{a?.early_minutes || ""}</td>
@@ -135,5 +152,13 @@ export default async function AdminDaily({ searchParams }: PageProps<"/admin">) 
         </div>
       )}
     </div>
+  );
+}
+
+export default function AdminDailyPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <Daily />
+    </Suspense>
   );
 }

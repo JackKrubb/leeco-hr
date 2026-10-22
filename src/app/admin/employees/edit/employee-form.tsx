@@ -1,13 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
-import { saveEmployeeAction } from "@/app/actions/admin";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { saveEmployeeAction } from "@/lib/actions/admin";
 import { SubmitButton } from "@/components/submit-button";
 import type { Employee } from "@/lib/types";
 
 export function EmployeeForm({ e, isSelf, suggestions }: { e: Employee | null; isSelf: boolean; suggestions: Record<string, string[]> }) {
+  const router = useRouter();
   const [state, action] = useActionState(saveEmployeeAction, undefined);
+  useEffect(() => {
+    if (state?.redirectTo) router.push(state.redirectTo);
+  }, [state, router]);
   const field = (name: keyof Employee, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
     <div>
       <label className="label" htmlFor={name}>{label}</label>
@@ -48,13 +53,13 @@ export function EmployeeForm({ e, isSelf, suggestions }: { e: Employee | null; i
         </label>
         <label className="flex items-center gap-2">
           <input type="checkbox" name="track_attendance" defaultChecked={e?.track_attendance ?? true} />
-          ต้องลงเวลา
+          ต้องลงเวลา (มีชื่อในหน้าลงเวลา)
         </label>
         <label className="flex items-center gap-2">
           สิทธิ์
           <select name="role" className="input w-auto py-1" defaultValue={e?.role ?? "employee"} disabled={isSelf}>
             <option value="employee">พนักงาน</option>
-            <option value="admin">ผู้ดูแลระบบ (HR)</option>
+            <option value="admin">ผู้ดูแลระบบ (HR) — เข้าหลังบ้านด้วยรหัส + PIN</option>
           </select>
           {isSelf && <input type="hidden" name="role" value="admin" />}
         </label>
@@ -62,7 +67,7 @@ export function EmployeeForm({ e, isSelf, suggestions }: { e: Employee | null; i
 
       {state?.error && <p className="rounded-lg bg-bad-soft px-3 py-2 text-sm text-bad">{state.error}</p>}
       <div className="flex justify-end gap-2">
-        <Link href="/admin/employees" className="btn">ยกเลิก</Link>
+        <Link href="/admin/employees/" className="btn">ยกเลิก</Link>
         <SubmitButton>บันทึก</SubmitButton>
       </div>
     </form>

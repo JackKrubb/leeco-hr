@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { saveSettingsAction } from "@/app/actions/admin";
+import { saveSettingsAction } from "@/lib/actions/admin";
 import { SubmitButton } from "@/components/submit-button";
 import { WEEKDAYS_LONG } from "@/lib/format";
 import type { Settings } from "@/lib/types";
@@ -68,17 +68,6 @@ export function SettingsForm({ s }: { s: Settings }) {
           <span>
             บังคับให้อยู่ในพื้นที่บริษัทตอนลงเวลา
             <span className="block text-xs text-muted">ถ้าปิดไว้ ระบบยังบันทึกระยะห่างไว้ให้ดูในรายงาน แต่ไม่ปฏิเสธการลงเวลา</span>
-          </span>
-        </label>
-      </section>
-
-      <section className="card space-y-2 p-5">
-        <h2 className="text-sm font-semibold">การเข้าระบบ</h2>
-        <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" name="require_pin" defaultChecked={s.require_pin} className="mt-1" />
-          <span>
-            พนักงานต้องใช้ PIN ตอนเข้าระบบ
-            <span className="block text-xs text-muted">ปิดไว้ = โหมดทดสอบ: พนักงานเข้าด้วยรหัสพนักงานอย่างเดียว (ใครรู้รหัสก็ลงเวลาแทนได้) · ผู้ดูแลระบบต้องใช้ PIN เสมอ</span>
           </span>
         </label>
       </section>

@@ -1,13 +1,12 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { commitEmployeesAction, previewEmployeesAction, type EmployeeImportSummary, type EmployeePreview } from "@/app/actions/admin";
+import { commitEmployees, previewEmployees, type EmployeeImportSummary, type EmployeePreview } from "@/lib/actions/admin";
+import { asset } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
 import { IssuesList } from "@/components/issues-list";
 
 export function EmployeeImportPanel({ existingCount }: { existingCount: number }) {
-  const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<EmployeePreview | null>(null);
   const [result, setResult] = useState<EmployeeImportSummary | null>(null);
@@ -20,11 +19,8 @@ export function EmployeeImportPanel({ existingCount }: { existingCount: number }
     if (!file) return;
     setError(null);
     setResult(null);
-    const fd = new FormData();
-    fd.set("file", file);
-    if (sheet) fd.set("sheet", sheet);
     start(async () => {
-      const res = await previewEmployeesAction(fd);
+      const res = await previewEmployees(file, sheet);
       if (res.ok) setPreview(res.data!);
       else {
         setPreview(null);
@@ -36,12 +32,11 @@ export function EmployeeImportPanel({ existingCount }: { existingCount: number }
   const commit = () => {
     if (!preview) return;
     start(async () => {
-      const res = await commitEmployeesAction(preview.rows, deactivate, preview.fileName);
+      const res = await commitEmployees(preview.rows, deactivate, preview.fileName);
       if (res.ok) {
         setResult(res.data!);
         setPreview(null);
         if (fileRef.current) fileRef.current.value = "";
-        router.refresh();
       } else setError(res.error);
     });
   };
@@ -52,7 +47,7 @@ export function EmployeeImportPanel({ existingCount }: { existingCount: number }
         <div>
           <h2 className="text-sm font-semibold">นำเข้ารายชื่อพนักงานจาก Excel</h2>
           <p className="mt-0.5 text-xs text-muted">
-            ใช้ไฟล์รายชื่อแบบเดิมของ HR ได้เลย หรือใช้ <a className="text-accent underline" href="/templates/employees-template.xlsx" download>แม่แบบ</a> ·
+            ใช้ไฟล์รายชื่อแบบเดิมของ HR ได้เลย หรือใช้ <a className="text-accent underline" href={asset("/templates/employees-template.xlsx")} download>แม่แบบ</a> ·
             คนเดิมจับคู่จากรหัสหรือชื่อ-นามสกุล · ไม่นำเข้าค่าแรง
           </p>
         </div>
@@ -63,7 +58,7 @@ export function EmployeeImportPanel({ existingCount }: { existingCount: number }
       {error && <p className="mt-3 rounded-lg bg-bad-soft px-3 py-2 text-sm text-bad">{error}</p>}
       {result && (
         <p className="mt-3 rounded-lg bg-ok-soft px-3 py-2 text-sm text-ok">
-          นำเข้าแล้ว: เพิ่มใหม่ {result.inserted} · อัปเดต {result.updated}{result.deactivated ? ` · ปิดสถานะ ${result.deactivated}` : ""} คน — อย่าลืมสร้าง PIN ให้คนใหม่
+          นำเข้าแล้ว: เพิ่มใหม่ {result.inserted} · อัปเดต {result.updated}{result.deactivated ? ` · ปิดสถานะ ${result.deactivated}` : ""} คน
         </p>
       )}
 

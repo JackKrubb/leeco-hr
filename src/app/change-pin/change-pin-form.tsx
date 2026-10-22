@@ -1,16 +1,25 @@
 "use client";
 
-import { useActionState } from "react";
-import { changePinAction } from "@/app/actions/auth";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { changePinAction } from "@/lib/actions/auth";
+import { invalidate } from "@/lib/api";
 import { SubmitButton } from "@/components/submit-button";
 
 export function ChangePinForm() {
+  const router = useRouter();
   const [state, action] = useActionState(changePinAction, undefined);
+  useEffect(() => {
+    if (state?.redirectTo) {
+      invalidate();
+      router.replace("/admin/");
+    }
+  }, [state, router]);
   const pinProps = { type: "password", inputMode: "numeric" as const, pattern: "[0-9]*", maxLength: 6, minLength: 4, required: true, className: "input text-base tracking-[0.4em]" };
   return (
     <form action={action} className="space-y-4">
       <div>
-        <label className="label" htmlFor="old_pin">PIN ปัจจุบัน (ที่ได้จาก HR)</label>
+        <label className="label" htmlFor="old_pin">PIN ปัจจุบัน</label>
         <input id="old_pin" name="old_pin" autoComplete="current-password" {...pinProps} />
       </div>
       <div>

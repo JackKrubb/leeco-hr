@@ -22,6 +22,10 @@ const MESSAGES: Record<string, string> = {
   CANNOT_DEMOTE_SELF: "ไม่สามารถปิดหรือลดสิทธิ์บัญชีของตัวเองได้",
   NOT_FOUND: "ไม่พบข้อมูล",
   OUT_BEFORE_IN: "เวลาออกต้องหลังเวลาเข้า",
+  KIOSK_KEY: "ลิงก์ลงเวลานี้ใช้ไม่ได้แล้ว — ขอลิงก์ใหม่จาก HR",
+  PHOTO_REQUIRED: "ต้องถ่ายรูปหน้าตัวเองก่อนลงเวลา",
+  PHOTO_TOO_LARGE: "รูปใหญ่เกินไป ลองถ่ายใหม่",
+  MONTH_NOT_ENDED: "ยืนยันการตรวจได้หลังจบเดือนแล้วเท่านั้น",
 };
 
 export function errorMessage(code: string, detail?: string): string {

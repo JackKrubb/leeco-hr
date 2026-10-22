@@ -1,4 +1,4 @@
-import ExcelJS from "exceljs";
+import type ExcelJS from "exceljs";
 import type { Cell, Grid } from "./cells";
 
 export type Workbook = { sheets: { name: string; grid: Grid }[] };
@@ -55,7 +55,9 @@ export async function readWorkbook(fileName: string, data: ArrayBuffer): Promise
   if (!/\.xlsx$/i.test(fileName)) {
     throw new Error("รองรับเฉพาะไฟล์ .xlsx หรือ .csv (ถ้าเป็น .xls ให้เปิดใน Excel แล้ว “บันทึกเป็น” .xlsx)");
   }
-  const wb = new ExcelJS.Workbook();
+  // loaded on demand: the Excel library is large and only needed when someone uploads a file
+  const { default: Excel } = await import("exceljs");
+  const wb = new Excel.Workbook();
   await wb.xlsx.load(data);
   const sheets = wb.worksheets
     .filter((ws) => ws.state === "visible" || ws.state === undefined)

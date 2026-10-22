@@ -1,19 +1,24 @@
+"use client";
+
 import Link from "next/link";
-import { requireAdmin } from "@/lib/session";
-import { rpc } from "@/lib/db";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { useAuthed } from "@/lib/use-authed";
+import { Loading } from "@/components/session";
 import { bkkToday, fmtDate } from "@/lib/format";
 import type { Holiday } from "@/lib/types";
 import { HolidayBadge } from "@/components/holiday-badge";
-import { deleteHolidayAction } from "@/app/actions/admin";
+import { deleteHoliday } from "@/lib/actions/admin";
 import { HolidayImportPanel } from "./import-panel";
 import { HolidayForm } from "./holiday-form";
 
-export default async function HolidaysPage({ searchParams }: PageProps<"/admin/holidays">) {
-  const { token } = await requireAdmin();
-  const sp = await searchParams;
+function Holidays() {
+  const y = useSearchParams().get("y");
   const thisYear = Number(bkkToday().slice(0, 4));
-  const year = typeof sp.y === "string" && /^\d{4}$/.test(sp.y) ? Number(sp.y) : thisYear;
-  const holidays = await rpc<Holiday[]>("hr_admin_holidays", { p_token: token, p_year: year });
+  const year = y && /^\d{4}$/.test(y) ? Number(y) : thisYear;
+  const q = useAuthed<Holiday[]>("hr_admin_holidays", { p_year: year });
+  if (!q.data) return <Loading error={q.error} />;
+  const holidays = q.data;
   const offCount = holidays.filter((h) => h.company_off).length;
 
   return (
@@ -25,8 +30,8 @@ export default async function HolidaysPage({ searchParams }: PageProps<"/admin/h
           <p className="text-xs text-muted">บริษัทหยุด {offCount} วัน · ทั้งหมด {holidays.length} รายการ</p>
         </div>
         <div className="flex gap-2">
-          <Link className="btn btn-sm" href={`/admin/holidays?y=${year - 1}`}>← {year - 1 + 543}</Link>
-          <Link className="btn btn-sm" href={`/admin/holidays?y=${year + 1}`}>{year + 1 + 543} →</Link>
+          <Link className="btn btn-sm" href={`/admin/holidays/?y=${year - 1}`}>← {year - 1 + 543}</Link>
+          <Link className="btn btn-sm" href={`/admin/holidays/?y=${year + 1}`}>{year + 1 + 543} →</Link>
         </div>
       </div>
 
@@ -46,9 +51,11 @@ export default async function HolidaysPage({ searchParams }: PageProps<"/admin/h
                   <td><HolidayBadge h={h} /></td>
                   <td className="text-xs text-muted">{h.note}</td>
                   <td className="text-right">
-                    <form action={deleteHolidayAction.bind(null, h.id)}>
-                      <button className="btn btn-sm btn-danger">ลบ</button>
-                    </form>
+                    <button className="btn btn-sm btn-danger" onClick={async () => {
+                      if (!confirm(`ลบวันหยุด “${h.name}”?`)) return;
+                      const res = await deleteHoliday(h.id);
+                      if (!res.ok) alert(res.error);
+                    }}>ลบ</button>
                   </td>
                 </tr>
               ))}
@@ -59,5 +66,13 @@ export default async function HolidaysPage({ searchParams }: PageProps<"/admin/h
 
       <HolidayForm />
     </div>
+  );
+}
+
+export default function HolidaysPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <Holidays />
+    </Suspense>
   );
 }

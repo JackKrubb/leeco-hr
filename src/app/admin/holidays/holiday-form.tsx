@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef } from "react";
-import { saveHolidayAction } from "@/app/actions/admin";
+import { saveHolidayAction } from "@/lib/actions/admin";
 import { SubmitButton } from "@/components/submit-button";
 
 export function HolidayForm() {

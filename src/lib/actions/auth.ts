@@ -1,13 +1,7 @@
-"use server";
+import { authed, clearToken, getToken, messageOf, rpc, setToken } from "../api";
+import { errorMessage } from "../messages";
 
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { rpc } from "@/lib/db";
-import { errorMessage } from "@/lib/messages";
-import { clearToken, getToken, setToken } from "@/lib/session";
-import { actionError } from "@/lib/action-error";
-
-export type FormState = { error?: string; message?: string } | undefined;
+export type FormState = { error?: string; message?: string; redirectTo?: string } | undefined;
 
 type LoginResult = {
   ok: boolean;
@@ -25,10 +19,9 @@ export async function loginAction(_prev: FormState, fd: FormData): Promise<FormS
 
   let res: LoginResult;
   try {
-    const ua = (await headers()).get("user-agent") ?? null;
-    res = await rpc<LoginResult>("hr_login", { p_code: code, p_pin: pin, p_user_agent: ua });
+    res = await rpc<LoginResult>("hr_login", { p_code: code, p_pin: pin, p_user_agent: navigator.userAgent });
   } catch (e) {
-    return { error: actionError(e).error };
+    return { error: messageOf(e) };
   }
   if (!res.ok) {
     let msg = errorMessage(res.error ?? "INVALID_LOGIN");
@@ -37,21 +30,21 @@ export async function loginAction(_prev: FormState, fd: FormData): Promise<FormS
     }
     return { error: msg };
   }
-  await setToken(res.token!);
-  redirect(res.must_change_pin ? "/change-pin" : res.role === "admin" ? "/admin" : "/");
+  setToken(res.token!);
+  return { redirectTo: res.must_change_pin ? "/change-pin/" : res.role === "admin" ? "/admin/" : "/" };
 }
 
-export async function logoutAction() {
-  const token = await getToken();
+export async function logout(router: { replace: (href: string) => void }) {
+  const token = getToken();
   if (token) {
     try {
       await rpc("hr_logout", { p_token: token });
     } catch {
-      // the cookie is cleared either way
+      // the local token is cleared either way
     }
   }
-  await clearToken();
-  redirect("/login");
+  clearToken();
+  router.replace("/login/");
 }
 
 export async function changePinAction(_prev: FormState, fd: FormData): Promise<FormState> {
@@ -59,14 +52,11 @@ export async function changePinAction(_prev: FormState, fd: FormData): Promise<F
   const newPin = String(fd.get("new_pin") ?? "").trim();
   const confirm = String(fd.get("confirm_pin") ?? "").trim();
   if (newPin !== confirm) return { error: "PIN ใหม่ทั้งสองช่องไม่ตรงกัน" };
-  const token = await getToken();
-  if (!token) redirect("/login");
-  let res: { ok: boolean; error?: string };
   try {
-    res = await rpc("hr_change_pin", { p_token: token, p_old: oldPin, p_new: newPin });
+    const res = await authed<{ ok: boolean; error?: string }>("hr_change_pin", { p_old: oldPin, p_new: newPin });
+    if (!res.ok) return { error: errorMessage(res.error!) };
   } catch (e) {
-    return { error: actionError(e).error };
+    return { error: messageOf(e) };
   }
-  if (!res.ok) return { error: errorMessage(res.error!) };
-  redirect("/");
+  return { redirectTo: "/" };
 }

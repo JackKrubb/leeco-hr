@@ -1,14 +1,13 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { commitHolidaysAction, previewHolidaysAction, type HolidayPreview } from "@/app/actions/admin";
+import { commitHolidays, previewHolidays, type HolidayPreview } from "@/lib/actions/admin";
+import { asset } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
 import { IssuesList } from "@/components/issues-list";
 import { HolidayBadge } from "@/components/holiday-badge";
 
 export function HolidayImportPanel() {
-  const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<HolidayPreview | null>(null);
   const [replace, setReplace] = useState(true);
@@ -19,11 +18,8 @@ export function HolidayImportPanel() {
     const file = fileRef.current?.files?.[0];
     if (!file) return;
     setMsg(null);
-    const fd = new FormData();
-    fd.set("file", file);
-    if (sheet) fd.set("sheet", sheet);
     start(async () => {
-      const res = await previewHolidaysAction(fd);
+      const res = await previewHolidays(file, sheet);
       if (res.ok) setPreview(res.data!);
       else {
         setPreview(null);
@@ -37,12 +33,11 @@ export function HolidayImportPanel() {
   const commit = () => {
     if (!preview) return;
     start(async () => {
-      const res = await commitHolidaysAction(preview.rows, replace, preview.fileName);
+      const res = await commitHolidays(preview.rows, replace, preview.fileName);
       if (res.ok) {
         setMsg({ ok: true, text: `บันทึกวันหยุด ${res.data!.saved} วัน${res.data!.deleted ? ` (ลบรายการเดิม ${res.data!.deleted} วัน)` : ""}` });
         setPreview(null);
         if (fileRef.current) fileRef.current.value = "";
-        router.refresh();
       } else setMsg({ ok: false, text: res.error });
     });
   };
@@ -54,7 +49,7 @@ export function HolidayImportPanel() {
           <h2 className="text-sm font-semibold">อัปโหลดตารางวันหยุดจาก Excel</h2>
           <p className="mt-0.5 text-xs text-muted">
             คอลัมน์: วันที่ · ชื่อวันหยุด · ประเภท (ราชการ/บริษัท) · บริษัทหยุด (ใช่/ไม่) · หมายเหตุ —{" "}
-            <a className="text-accent underline" href="/templates/holidays-2569.xlsx" download>ไฟล์วันหยุดราชการ 2569</a>
+            <a className="text-accent underline" href={asset("/templates/holidays-2569.xlsx")} download>ไฟล์วันหยุดราชการ 2569</a>
           </p>
         </div>
         <input ref={fileRef} type="file" accept=".xlsx,.csv" className="text-sm file:mr-3 file:rounded-lg file:border file:border-line file:bg-paper file:px-3 file:py-1.5 file:text-sm" onChange={() => runPreview()} />

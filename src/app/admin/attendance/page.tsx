@@ -1,5 +1,10 @@
-import { requireAdmin } from "@/lib/session";
-import { rpc } from "@/lib/db";
+"use client";
+
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { useAuthed } from "@/lib/use-authed";
+import { detailLines, downloadCsv, summaryLines } from "@/lib/export";
+import { Loading } from "@/components/session";
 import { bkkToday, fmtDate, fmtTime, fullName } from "@/lib/format";
 import type { Employee } from "@/lib/types";
 import type { AttendanceReport } from "@/lib/attendance-report";
@@ -7,17 +12,15 @@ import { EditAttendanceForm } from "./edit-form";
 
 const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
-export default async function AttendancePage({ searchParams }: PageProps<"/admin/attendance">) {
-  const { token } = await requireAdmin();
-  const sp = await searchParams;
+function AttendanceRange() {
+  const sp = useSearchParams();
   const today = bkkToday();
-  const from = isDate(sp.from) ? sp.from : today.slice(0, 8) + "01";
-  const to = isDate(sp.to) ? sp.to : today;
-  const [report, employees] = await Promise.all([
-    rpc<AttendanceReport>("hr_admin_attendance", { p_token: token, p_from: from, p_to: to }),
-    rpc<Employee[]>("hr_admin_employees", { p_token: token }),
-  ]);
-  const qs = `from=${from}&to=${to}`;
+  const from = isDate(sp.get("from")) ? sp.get("from")! : today.slice(0, 8) + "01";
+  const to = isDate(sp.get("to")) ? sp.get("to")! : today;
+  const reportQ = useAuthed<AttendanceReport>("hr_admin_attendance", { p_from: from, p_to: to });
+  const employeesQ = useAuthed<Employee[]>("hr_admin_employees");
+  const report = reportQ.data, employees = employeesQ.data;
+  if (!report || !employees) return <Loading error={reportQ.error ?? employeesQ.error} />;
 
   return (
     <div className="space-y-5">
@@ -26,12 +29,12 @@ export default async function AttendancePage({ searchParams }: PageProps<"/admin
           <p className="eyebrow">รายงานตามช่วงวันที่ · แก้ไขเวลา</p>
           <h1 className="h1">{fmtDate(from)} – {fmtDate(to)}</h1>
         </div>
-        <form className="no-print flex flex-wrap items-end gap-2">
+        <form className="no-print flex flex-wrap items-end gap-2" action="">
           <div><label className="label">ตั้งแต่</label><input type="date" name="from" defaultValue={from} className="input py-1.5" /></div>
           <div><label className="label">ถึง</label><input type="date" name="to" defaultValue={to} className="input py-1.5" /></div>
           <button className="btn">ดู</button>
-          <a className="btn" href={`/admin/reports/export?${qs}&type=summary`}>Excel สรุป</a>
-          <a className="btn" href={`/admin/reports/export?${qs}&type=detail`}>Excel รายวัน</a>
+          <button type="button" className="btn" onClick={() => downloadCsv(`summary-${from}-to-${to}`, summaryLines(report))}>Excel สรุป</button>
+          <button type="button" className="btn" onClick={() => downloadCsv(`detail-${from}-to-${to}`, detailLines(report))}>Excel รายวัน</button>
         </form>
       </div>
 
@@ -95,5 +98,13 @@ export default async function AttendancePage({ searchParams }: PageProps<"/admin
         </div>
       </details>
     </div>
+  );
+}
+
+export default function AttendancePage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <AttendanceRange />
+    </Suspense>
   );
 }

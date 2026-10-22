@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { editAttendanceAction } from "@/app/actions/admin";
+import { editAttendanceAction } from "@/lib/actions/admin";
 import { SubmitButton } from "@/components/submit-button";
 
 export function EditAttendanceForm({ employees, defaultDate }: { employees: { id: string; label: string }[]; defaultDate: string }) {

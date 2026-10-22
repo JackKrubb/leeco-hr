@@ -1,7 +1,14 @@
+"use client";
+
 import Link from "next/link";
-import { requireAdmin } from "@/lib/session";
-import { rpc } from "@/lib/db";
-import { bkkToday, fmtTime, WEEKDAYS_SHORT } from "@/lib/format";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useAuthed } from "@/lib/use-authed";
+import { reviewMonth } from "@/lib/actions/admin";
+import { detailLines, downloadCsv, summaryLines } from "@/lib/export";
+import { bkkToday, fmtDate, fmtTime, WEEKDAYS_SHORT } from "@/lib/format";
+import { Loading } from "@/components/session";
+import type { PhotoMonth } from "@/components/photo-status-banner";
 import { isoDow, monthDays, parseMonthParam, shiftMonth, thaiMonth, workdayChecker } from "@/lib/calendar";
 import type { AttendanceReport } from "@/lib/attendance-report";
 import type { Attendance, Employee, Holiday, Settings } from "@/lib/types";
@@ -9,19 +16,61 @@ import type { Attendance, Employee, Holiday, Settings } from "@/lib/types";
 const SORTS = { order: "ลำดับ", late: "สายมากสุด", early: "กลับก่อนมากสุด", absent: "ขาดมากสุด" } as const;
 type SortKey = keyof typeof SORTS;
 
-export default async function MonthlyReport({ searchParams }: PageProps<"/admin/reports/monthly">) {
-  const { token } = await requireAdmin();
-  const sp = await searchParams;
-  const today = bkkToday();
-  const { y, mo, key, from, to } = parseMonthParam(sp.m, today);
-  const sort: SortKey = typeof sp.sort === "string" && sp.sort in SORTS ? (sp.sort as SortKey) : "order";
+function ReviewPanel({ monthKey, status }: { monthKey: string; status?: PhotoMonth }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  if (!status) return null;
+  const toggle = async (reviewed: boolean) => {
+    if (reviewed && !confirm("ยืนยันว่าตรวจรีพอร์ตของเดือนนี้เสร็จแล้ว?\nหลังยืนยัน รูปลงเวลาของเดือนนี้ที่อายุเกิน 30 วันจะถูกลบอัตโนมัติ")) return;
+    setBusy(true);
+    const res = await reviewMonth(`${monthKey}-01`, reviewed);
+    setBusy(false);
+    setMsg(res.ok ? (reviewed ? `ยืนยันแล้ว${res.data!.purged ? ` · ลบรูปเก่าไป ${res.data!.purged} รูป` : ""}` : "ยกเลิกการยืนยันแล้ว") : res.error);
+  };
+  const mb = (status.bytes / 1024 / 1024).toFixed(1);
+  return (
+    <section className={`card flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${status.reviewed ? "" : status.ended ? "border-warn/40 bg-warn-soft/40" : ""}`}>
+      <div className="text-sm">
+        <p className="font-semibold">
+          การตรวจรีพอร์ต:{" "}
+          {status.reviewed ? <span className="text-ok">ตรวจแล้ว</span> : status.ended ? <span className="text-warn">ยังไม่ได้ตรวจ</span> : <span className="text-muted">ยังไม่จบเดือน</span>}
+        </p>
+        <p className="text-xs text-muted">
+          รูปลงเวลาเดือนนี้ {status.photos} รูป ({mb} MB) ·{" "}
+          {status.reviewed
+            ? `ยืนยันโดย ${status.reviewed_by ?? "-"} เมื่อ ${fmtDate(status.reviewed_at)} · รูปที่อายุเกิน 30 วันจะถูกลบอัตโนมัติ (หมดภายใน ${fmtDate(status.all_deleted_by)})`
+            : "รูปจะยังไม่ถูกลบจนกว่า HR จะยืนยันว่าตรวจรีพอร์ตเดือนนี้เสร็จ"}
+        </p>
+        {msg && <p className="mt-1 text-xs">{msg}</p>}
+      </div>
+      {status.ended && (
+        status.reviewed ? (
+          <button className="btn btn-sm" disabled={busy} onClick={() => toggle(false)}>ยกเลิกการยืนยัน</button>
+        ) : (
+          <button className="btn btn-primary" disabled={busy} onClick={() => toggle(true)}>ยืนยันว่าตรวจรีพอร์ตเดือนนี้แล้ว</button>
+        )
+      )}
+    </section>
+  );
+}
 
-  const [report, holidays, settings, employees] = await Promise.all([
-    rpc<AttendanceReport>("hr_admin_attendance", { p_token: token, p_from: from, p_to: to }),
-    rpc<Holiday[]>("hr_admin_holidays", { p_token: token, p_year: y }),
-    rpc<Settings>("hr_admin_settings", { p_token: token }),
-    rpc<Employee[]>("hr_admin_employees", { p_token: token }),
-  ]);
+function MonthlyReport() {
+  const sp = useSearchParams();
+  const today = bkkToday();
+  const { y, mo, key, from, to } = parseMonthParam(sp.get("m") ?? undefined, today);
+  const sortParam = sp.get("sort") ?? "";
+  const sort: SortKey = sortParam in SORTS ? (sortParam as SortKey) : "order";
+
+  const reportQ = useAuthed<AttendanceReport>("hr_admin_attendance", { p_from: from, p_to: to });
+  const holidaysQ = useAuthed<Holiday[]>("hr_admin_holidays", { p_year: y });
+  const settingsQ = useAuthed<Settings>("hr_admin_settings");
+  const employeesQ = useAuthed<Employee[]>("hr_admin_employees");
+  const photoQ = useAuthed<PhotoMonth[]>("hr_admin_photo_status");
+  const report = reportQ.data, holidays = holidaysQ.data, settings = settingsQ.data, employees = employeesQ.data;
+  if (!report || !holidays || !settings || !employees) {
+    return <Loading error={reportQ.error ?? holidaysQ.error ?? settingsQ.error ?? employeesQ.error} />;
+  }
+  const status = photoQ.data?.find((m) => m.month.startsWith(key)) ?? (photoQ.data ? { month: `${key}-01`, photos: 0, bytes: 0, ended: key < today.slice(0, 7), reviewed: false, reviewed_at: null, reviewed_by: null, all_deleted_by: null } : undefined);
 
   const days = monthDays(y, mo);
   const isWorkday = workdayChecker(settings.work_days, holidays);
@@ -41,7 +90,7 @@ export default async function MonthlyReport({ searchParams }: PageProps<"/admin/
     (t, s) => ({ late: t.late + s.late_days, lateMin: t.lateMin + s.late_minutes, early: t.early + s.early_days, earlyMin: t.earlyMin + s.early_minutes, absent: t.absent + s.absent, miss: t.miss + s.missing_checkout }),
     { late: 0, lateMin: 0, early: 0, earlyMin: 0, absent: 0, miss: 0 },
   );
-  const link = (p: Record<string, string>) => `/admin/reports/monthly?${new URLSearchParams({ m: key, ...(sort !== "order" ? { sort } : {}), ...p })}`;
+  const link = (p: Record<string, string>) => `/admin/reports/monthly/?${new URLSearchParams({ m: key, ...(sort !== "order" ? { sort } : {}), ...p })}`;
 
   return (
     <div className="space-y-5">
@@ -52,16 +101,18 @@ export default async function MonthlyReport({ searchParams }: PageProps<"/admin/
           <p className="text-xs text-muted">วันทำงานของบริษัทเดือนนี้ {companyWorkdays} วัน · นับถึงวันนี้เท่านั้น · เวลาทำงาน {settings.work_start}–{settings.work_end} น.</p>
         </div>
         <div className="no-print flex flex-wrap items-end gap-2">
-          <Link className="btn btn-sm" href={`/admin/reports/monthly?m=${shiftMonth(y, mo, -1)}`}>← เดือนก่อน</Link>
-          <form className="flex gap-2">
+          <Link className="btn btn-sm" href={`/admin/reports/monthly/?m=${shiftMonth(y, mo, -1)}`}>← เดือนก่อน</Link>
+          <form className="flex gap-2" action="">
             <input type="month" name="m" defaultValue={key} className="input py-1 text-sm" />
             <button className="btn btn-sm">ดู</button>
           </form>
-          {key < today.slice(0, 7) && <Link className="btn btn-sm" href={`/admin/reports/monthly?m=${shiftMonth(y, mo, 1)}`}>เดือนถัดไป →</Link>}
-          <a className="btn btn-sm" href={`/admin/reports/export?type=monthly&m=${key}`}>Excel สรุปเดือน</a>
-          <a className="btn btn-sm" href={`/admin/reports/export?type=detail&from=${from}&to=${to}`}>Excel รายวันทั้งเดือน</a>
+          {key < today.slice(0, 7) && <Link className="btn btn-sm" href={`/admin/reports/monthly/?m=${shiftMonth(y, mo, 1)}`}>เดือนถัดไป →</Link>}
+          <button className="btn btn-sm" onClick={() => downloadCsv(`monthly-${key}`, summaryLines(report))}>Excel สรุปเดือน</button>
+          <button className="btn btn-sm" onClick={() => downloadCsv(`detail-${from}-to-${to}`, detailLines(report))}>Excel รายวันทั้งเดือน</button>
         </div>
       </div>
+
+      <ReviewPanel monthKey={key} status={status} />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         {[
@@ -138,7 +189,7 @@ export default async function MonthlyReport({ searchParams }: PageProps<"/admin/
                   const h = holidayByDate.get(d);
                   return (
                     <th key={d} title={h?.name} className={`border-b border-l border-line/60 px-0 py-1 text-center font-normal ${isWorkday(d) ? "text-muted" : "bg-paper text-public/80"} ${d === today ? "bg-ink! text-white!" : ""}`}>
-                      <Link href={`/admin?d=${d}`} className="block min-w-7">
+                      <Link href={`/admin/?d=${d}`} className="block min-w-7">
                         <span className="block text-[10px]">{WEEKDAYS_SHORT[isoDow(d) - 1]}</span>
                         <span className="block tabular-nums">{+d.slice(8)}</span>
                       </Link>
@@ -201,5 +252,13 @@ export default async function MonthlyReport({ searchParams }: PageProps<"/admin/
         <p className="px-4 py-2 text-xs text-muted">ตัวเลข = จำนวนนาทีที่สาย/กลับก่อน · ช่องที่มีสองตัวเลข = ทั้งสาย (บน) และกลับก่อน (ล่าง) · “?” = ไม่ลงเวลาออก · ชี้ที่ช่องเพื่อดูเวลาเข้า-ออก · คลิกวันที่เพื่อดูรายงานรายวัน</p>
       </section>
     </div>
+  );
+}
+
+export default function MonthlyReportPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <MonthlyReport />
+    </Suspense>
   );
 }
